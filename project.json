@@ -30,7 +30,12 @@
     "debugVariables": {
       "pous": {
         "main": [
-          "T1"
+          "NS_Rot",
+          "NS_Gelb",
+          "NS_Gruen",
+          "OW_Rot",
+          "OW_Gelb",
+          "OW_Gruen"
         ]
       }
     }
