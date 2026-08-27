@@ -100,6 +100,63 @@ Der Lernpunkt daraus: Eine Verriegelung ist nur so gut wie die Fehlerfälle, die
 
 ---
 
+## Fehlersuche: Rot und Grün gleichzeitig
+
+Der Fehler, der im Programm steckte, und wie er gefunden wurde. Fehlersuche ist die häufigste Tätigkeit im Beruf — deshalb steht sie hier ausdrücklich und nicht nur als Nebensatz.
+
+**Symptom.** In der Simulation zeigte Nord-Süd in Phase 1 gleichzeitig Rot und Grün, und zwar über die vollen fünf Sekunden der Grünphase. Ost-West verhielt sich unauffällig.
+
+**Eingrenzen.** Zwei Beobachtungen halfen sofort weiter. Erstens trat der Fehler nur in einer Richtung auf — also lag er nicht in der Grundstellung und nicht im Timer, die für beide Richtungen gemeinsam sind. Zweitens trat er nur in einer Phase auf, nicht über den ganzen Umlauf. Damit war der Suchraum auf den Schritt-1-Zweig des `CASE` eingegrenzt, sechs Zeilen Code.
+
+**Ursache.** Dort stand:
+
+```pascal
+1: (* NS Gruen *)
+NS_Rot := TRUE; NS_Gruen := TRUE;
+```
+
+Die Grundstellung vor dem `CASE` setzt bereits alle Lampen auf Rot. Der Schritt soll das für seine Richtung *aufheben*, also `NS_Rot := FALSE` setzen. Stattdessen wurde die Grundstellung wiederholt — Rot blieb an, Grün kam dazu.
+
+**Warum es nicht aufgefallen ist.** Die vorhandene Verriegelung prüfte nur, ob beide Richtungen gleichzeitig Grün sind. Dieser Fall kann strukturell gar nicht eintreten, weil jede Richtung nur in genau einer Phase Grün setzt. Die Prüfung hat also nie ausgelöst und dabei den Eindruck erweckt, die Anlage sei abgesichert.
+
+**Korrektur.** Zwei Änderungen:
+
+```pascal
+NS_Rot := FALSE; NS_Gruen := TRUE;      (* Ursache behoben *)
+
+IF NS_Rot AND NS_Gruen THEN             (* zweite Prüfung ergänzt *)
+    NS_Gruen := FALSE;
+END_IF;
+```
+
+**Was ich daraus mitnehme.** Eine Verriegelung ist nur so gut wie die Fehlerfälle, die sie überhaupt prüfen kann. Sie muss auf den Fehler zielen, der tatsächlich auftreten kann, nicht auf den, der theoretisch am schlimmsten klingt. Und: dass eine Prüfung nie auslöst, ist kein Beweis dafür, dass alles in Ordnung ist — es kann auch heißen, dass sie am falschen Ort steht.
+
+---
+
+## Prüfprotokoll
+
+Getestet im OpenPLC-Simulator, Variablen im Debugger beobachtet.
+
+| Nr. | Testfall | Erwartetes Verhalten | Ergebnis | Datum |
+|---:|---|---|:--:|---|
+| 1 | Kaltstart | `Schritt = 0`, NS Rot und Gelb, OW Rot | | |
+| 2 | Nach 2 s | Wechsel auf `Schritt = 1` | | |
+| 3 | Während Schritt 1 | `NS_Rot = FALSE`, `NS_Gruen = TRUE` | | |
+| 4 | Während Schritt 1 | OW komplett Rot | | |
+| 5 | Nach 5 s | Wechsel auf `Schritt = 2`, NS Gelb | | |
+| 6 | Schritt 3 | alle sechs Ausgänge Rot, Dauer 3 s | | |
+| 7 | Schritte 4 bis 7 | spiegelbildlich zu 0 bis 3, Rollen vertauscht | | |
+| 8 | Schritt 7 → 0 | Umlauf schließt sich, kein Hängenbleiben | | |
+| 9 | Vollständiger Umlauf | Gesamtdauer 26 s | | |
+| 10 | Über zwei volle Umläufe | zu keinem Zeitpunkt `NS_Gruen AND OW_Gruen` | | |
+| 11 | Über zwei volle Umläufe | zu keinem Zeitpunkt Rot und Grün derselben Richtung | | |
+| 12 | Verriegelung 3a erzwingen: im Debugger `OW_Gruen` auf TRUE forcen, während NS grün ist | beide Richtungen fallen auf Rot | | |
+| 13 | Verriegelung 3b erzwingen: im Debugger `NS_Rot` auf TRUE forcen, während NS grün ist | `NS_Gruen` wird zurückgesetzt | | |
+
+Testfall 12 und 13 prüfen die Verriegelung selbst. Ohne sie steht im Protokoll nur, dass der Normalbetrieb funktioniert — und genau das war der Grund, warum der Fehler oben so lange unentdeckt blieb.
+
+---
+
 ## Ausführen
 
 1. Projekt im OpenPLC Editor öffnen
