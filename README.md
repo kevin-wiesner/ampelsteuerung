@@ -133,27 +133,29 @@ END_IF;
 
 ---
 
-## Prüfprotokoll
+## Testplan
 
-Getestet im OpenPLC-Simulator, Variablen im Debugger beobachtet.
+Testfälle für den OpenPLC-Simulator: Variablen im Debugger beobachten bzw. setzen.
 
-| Nr. | Testfall | Erwartetes Verhalten | Ergebnis | Datum |
-|---:|---|---|:--:|---|
-| 1 | Kaltstart | `Schritt = 0`, NS Rot und Gelb, OW Rot | | |
-| 2 | Nach 2 s | Wechsel auf `Schritt = 1` | | |
-| 3 | Während Schritt 1 | `NS_Rot = FALSE`, `NS_Gruen = TRUE` | | |
-| 4 | Während Schritt 1 | OW komplett Rot | | |
-| 5 | Nach 5 s | Wechsel auf `Schritt = 2`, NS Gelb | | |
-| 6 | Schritt 3 | alle sechs Ausgänge Rot, Dauer 3 s | | |
-| 7 | Schritte 4 bis 7 | spiegelbildlich zu 0 bis 3, Rollen vertauscht | | |
-| 8 | Schritt 7 → 0 | Umlauf schließt sich, kein Hängenbleiben | | |
-| 9 | Vollständiger Umlauf | Gesamtdauer 26 s | | |
-| 10 | Über zwei volle Umläufe | zu keinem Zeitpunkt `NS_Gruen AND OW_Gruen` | | |
-| 11 | Über zwei volle Umläufe | zu keinem Zeitpunkt Rot und Grün derselben Richtung | | |
-| 12 | Verriegelung 3a erzwingen: im Debugger `OW_Gruen` auf TRUE forcen, während NS grün ist | beide Richtungen fallen auf Rot | | |
-| 13 | Verriegelung 3b erzwingen: im Debugger `NS_Rot` auf TRUE forcen, während NS grün ist | `NS_Gruen` wird zurückgesetzt | | |
+| Nr. | Testfall | Erwartetes Verhalten |
+|---:|---|---|
+| 1 | Kaltstart | `Schritt = 0`, NS Rot und Gelb, OW Rot |
+| 2 | Nach 2 s | Wechsel auf `Schritt = 1` |
+| 3 | Während Schritt 1 | `NS_Rot = FALSE`, `NS_Gruen = TRUE` |
+| 4 | Während Schritt 1 | OW komplett Rot |
+| 5 | Nach 5 s | Wechsel auf `Schritt = 2`, NS Gelb |
+| 6 | Schritt 3 | alle sechs Ausgänge Rot, Dauer 3 s |
+| 7 | Schritte 4 bis 7 | spiegelbildlich zu 0 bis 3, Rollen vertauscht |
+| 8 | Schritt 7 → 0 | Umlauf schließt sich, kein Hängenbleiben |
+| 9 | Vollständiger Umlauf | Gesamtdauer ca. 26 s |
+| 10 | Über zwei volle Umläufe | zu keinem Zeitpunkt `NS_Gruen AND OW_Gruen` |
+| 11 | Über zwei volle Umläufe | zu keinem Zeitpunkt Rot und Grün derselben Richtung |
+| 12 | Verriegelung 3a auslösen: in Schritt 1 vorübergehend `OW_Gruen := TRUE;` ergänzen | beide Richtungen fallen auf Rot |
+| 13 | Verriegelung 3b auslösen: in Schritt 1 vorübergehend `NS_Rot := TRUE;` setzen — der ursprüngliche Fehler | `NS_Gruen` wird zurückgesetzt, NS zeigt nur Rot |
 
-Testfall 12 und 13 prüfen die Verriegelung selbst. Ohne sie steht im Protokoll nur, dass der Normalbetrieb funktioniert — und genau das war der Grund, warum der Fehler oben so lange unentdeckt blieb.
+Die Testfälle 12 und 13 lösen die Verriegelung über eine vorübergehende Codeänderung aus statt über Forcen im Debugger, weil die Grundstellung am Zyklusanfang die Ausgänge in jedem Zyklus neu setzt. Nach dem Test die Zeile wieder entfernen.
+
+Die Testfälle 12 und 13 prüfen die Verriegelung selbst. Ohne sie prüft der Testplan nur, ob der Normalbetrieb funktioniert — und genau das war der Grund, warum der Fehler oben so lange unentdeckt blieb.
 
 ---
 
