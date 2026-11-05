@@ -8,7 +8,7 @@ Aktuelle Version: **Kreuzung mit zwei verriegelten Fahrtrichtungen** (Nord-Süd 
 
 ## Funktion
 
-Eine gemeinsame Zustandsmaschine schaltet beide Richtungen durch acht Phasen. Grün tritt je Richtung nur in genau einer Phase auf — beide Richtungen können strukturell nie gleichzeitig Grün haben. Zwischen den Richtungswechseln liegt jeweils eine Alles-Rot-Phase als Räumzeit.
+Eine gemeinsame Zustandsmaschine schaltet beide Richtungen durch acht Phasen. Grün tritt je Richtung nur in genau einer Phase auf, deshalb können beide Richtungen nie gleichzeitig Grün haben. Zwischen den Richtungswechseln liegt jeweils eine Alles-Rot-Phase als Räumzeit.
 
 | Schritt | Nord-Süd | Ost-West | Dauer |
 |--------:|----------|----------|:-----:|
@@ -50,13 +50,13 @@ stateDiagram-v2
     S7 --> S0: T1.Q nach 3 s
 ```
 
-Alle Übergänge sind rein zeitgesteuert — der Automat läuft ohne äußere Eingänge im Kreis. Eine ereignisgesteuerte Variante mit Anforderungstaster ist im Projekt [fussgaenger-ampel](https://github.com/kevin-wiesner/fussgaenger-ampel) umgesetzt.
+Alle Übergänge sind rein zeitgesteuert, der Automat läuft ohne äussere Eingänge im Kreis. Eine ereignisgesteuerte Variante mit Anforderungstaster ist im Projekt [fussgaenger-ampel](https://github.com/kevin-wiesner/fussgaenger-ampel) umgesetzt.
 
 ---
 
 ## Signalliste
 
-Das Projekt läuft im **OpenPLC-Simulator**, es ist kein Pin-Mapping auf physische Hardware hinterlegt. Alle Signale sind Ausgänge; Eingänge gibt es in dieser Version nicht.
+Das Projekt ist für den **OpenPLC-Simulator** angelegt, es ist kein Pin-Mapping auf physische Hardware hinterlegt. Alle Signale sind Ausgänge; Eingänge gibt es in dieser Version nicht.
 
 | Variable | Typ | Richtung | Bedeutung |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Das Projekt läuft im **OpenPLC-Simulator**, es ist kein Pin-Mapping auf physisc
 - **Grundstellung auf sicheren Zustand:** Zu Beginn jedes Zyklus werden alle Lampen auf Rot gesetzt, danach setzt die aktive Phase nur ihre Abweichungen. Fällt ein Schritt aus der Logik, steht die Anlage auf Rot statt auf undefiniert.
 - **Zweistufige Sicherheitsverriegelung** nach dem `CASE` (siehe unten)
 
-### Die Verriegelung — und warum sie zweistufig ist
+### Warum die Verriegelung zweistufig ist
 
 ```pascal
 (* 3a) Nie beide Richtungen gleichzeitig gruen *)
@@ -92,21 +92,17 @@ IF NS_Rot AND NS_Gruen THEN NS_Gruen := FALSE; END_IF;
 IF OW_Rot AND OW_Gruen THEN OW_Gruen := FALSE; END_IF;
 ```
 
-Ursprünglich gab es nur Prüfung **3a**. Die kann strukturell gar nicht auslösen, weil jede Richtung nur in genau einer Phase Grün setzt — sie beruhigte, ohne zu schützen.
+Ursprünglich gab es nur Prüfung **3a**. Die kann strukturell gar nicht auslösen, weil jede Richtung nur in genau einer Phase Grün setzt. Sie hat beruhigt, aber nichts geschützt.
 
 Der Fehler, der tatsächlich im Programm steckte, war ein anderer: In Schritt 1 stand `NS_Rot := TRUE` statt `FALSE`, wodurch Nord-Süd fünf Sekunden lang **Rot und Grün gleichzeitig** zeigte. Prüfung 3a sah das nicht. Prüfung **3b** fängt genau diesen Fall ab.
-
-Der Lernpunkt daraus: Eine Verriegelung ist nur so gut wie die Fehlerfälle, die sie überhaupt prüfen kann. Sie muss auf den Fehler zielen, der auftreten kann — nicht auf den, der theoretisch schlimm wäre.
 
 ---
 
 ## Fehlersuche: Rot und Grün gleichzeitig
 
-Der Fehler, der im Programm steckte, und wie er gefunden wurde. Fehlersuche ist die häufigste Tätigkeit im Beruf — deshalb steht sie hier ausdrücklich und nicht nur als Nebensatz.
+**Symptom.** Nord-Süd zeigte in Phase 1 gleichzeitig Rot und Grün, und zwar über die vollen fünf Sekunden der Grünphase. Ost-West verhielt sich unauffällig.
 
-**Symptom.** In der Simulation zeigte Nord-Süd in Phase 1 gleichzeitig Rot und Grün, und zwar über die vollen fünf Sekunden der Grünphase. Ost-West verhielt sich unauffällig.
-
-**Eingrenzen.** Zwei Beobachtungen halfen sofort weiter. Erstens trat der Fehler nur in einer Richtung auf — also lag er nicht in der Grundstellung und nicht im Timer, die für beide Richtungen gemeinsam sind. Zweitens trat er nur in einer Phase auf, nicht über den ganzen Umlauf. Damit war der Suchraum auf den Schritt-1-Zweig des `CASE` eingegrenzt, sechs Zeilen Code.
+**Eingrenzen.** Zwei Beobachtungen halfen sofort weiter. Erstens trat der Fehler nur in einer Richtung auf, also lag er nicht in der Grundstellung und nicht im Timer, die für beide Richtungen gemeinsam sind. Zweitens trat er nur in einer Phase auf, nicht über den ganzen Umlauf. Damit war der Suchraum auf den Schritt-1-Zweig des `CASE` eingegrenzt, vier Zeilen Code.
 
 **Ursache.** Dort stand:
 
@@ -115,7 +111,7 @@ Der Fehler, der im Programm steckte, und wie er gefunden wurde. Fehlersuche ist 
 NS_Rot := TRUE; NS_Gruen := TRUE;
 ```
 
-Die Grundstellung vor dem `CASE` setzt bereits alle Lampen auf Rot. Der Schritt soll das für seine Richtung *aufheben*, also `NS_Rot := FALSE` setzen. Stattdessen wurde die Grundstellung wiederholt — Rot blieb an, Grün kam dazu.
+Die Grundstellung vor dem `CASE` setzt bereits alle Lampen auf Rot. Der Schritt soll das für seine Richtung *aufheben*, also `NS_Rot := FALSE` setzen. Stattdessen wurde die Grundstellung wiederholt: Rot blieb an, Grün kam dazu.
 
 **Warum es nicht aufgefallen ist.** Die vorhandene Verriegelung prüfte nur, ob beide Richtungen gleichzeitig Grün sind. Dieser Fall kann strukturell gar nicht eintreten, weil jede Richtung nur in genau einer Phase Grün setzt. Die Prüfung hat also nie ausgelöst und dabei den Eindruck erweckt, die Anlage sei abgesichert.
 
@@ -129,13 +125,13 @@ IF NS_Rot AND NS_Gruen THEN             (* zweite Prüfung ergänzt *)
 END_IF;
 ```
 
-**Was ich daraus mitnehme.** Eine Verriegelung ist nur so gut wie die Fehlerfälle, die sie überhaupt prüfen kann. Sie muss auf den Fehler zielen, der tatsächlich auftreten kann, nicht auf den, der theoretisch am schlimmsten klingt. Und: dass eine Prüfung nie auslöst, ist kein Beweis dafür, dass alles in Ordnung ist — es kann auch heißen, dass sie am falschen Ort steht.
+**Was ich daraus gelernt habe.** Eine Verriegelung muss auf den Fehler zielen, der wirklich auftreten kann. Und dass eine Prüfung nie auslöst, heisst nicht, dass alles in Ordnung ist. Es kann auch heissen, dass sie das Falsche prüft.
 
 ---
 
 ## Testplan
 
-Testfälle für den OpenPLC-Simulator: Variablen im Debugger beobachten bzw. setzen.
+Testfälle für den OpenPLC-Simulator: Variablen im Debugger beobachten.
 
 | Nr. | Testfall | Erwartetes Verhalten |
 |---:|---|---|
@@ -146,16 +142,16 @@ Testfälle für den OpenPLC-Simulator: Variablen im Debugger beobachten bzw. set
 | 5 | Nach 5 s | Wechsel auf `Schritt = 2`, NS Gelb |
 | 6 | Schritt 3 | alle sechs Ausgänge Rot, Dauer 3 s |
 | 7 | Schritte 4 bis 7 | spiegelbildlich zu 0 bis 3, Rollen vertauscht |
-| 8 | Schritt 7 → 0 | Umlauf schließt sich, kein Hängenbleiben |
+| 8 | Schritt 7 → 0 | Umlauf schliesst sich, kein Hängenbleiben |
 | 9 | Vollständiger Umlauf | Gesamtdauer ca. 26 s |
 | 10 | Über zwei volle Umläufe | zu keinem Zeitpunkt `NS_Gruen AND OW_Gruen` |
 | 11 | Über zwei volle Umläufe | zu keinem Zeitpunkt Rot und Grün derselben Richtung |
 | 12 | Verriegelung 3a auslösen: in Schritt 1 vorübergehend `OW_Gruen := TRUE;` ergänzen | beide Richtungen fallen auf Rot |
-| 13 | Verriegelung 3b auslösen: in Schritt 1 vorübergehend `NS_Rot := TRUE;` setzen — der ursprüngliche Fehler | `NS_Gruen` wird zurückgesetzt, NS zeigt nur Rot |
+| 13 | Verriegelung 3b auslösen: in Schritt 1 vorübergehend `NS_Rot := TRUE;` setzen (der ursprüngliche Fehler) | `NS_Gruen` wird zurückgesetzt, NS zeigt nur Rot |
 
 Die Testfälle 12 und 13 lösen die Verriegelung über eine vorübergehende Codeänderung aus statt über Forcen im Debugger, weil die Grundstellung am Zyklusanfang die Ausgänge in jedem Zyklus neu setzt. Nach dem Test die Zeile wieder entfernen.
 
-Die Testfälle 12 und 13 prüfen die Verriegelung selbst. Ohne sie prüft der Testplan nur, ob der Normalbetrieb funktioniert — und genau das war der Grund, warum der Fehler oben so lange unentdeckt blieb.
+Die Testfälle 12 und 13 prüfen die Verriegelung selbst. Eine Prüfung, die im Normalbetrieb nie auslöst, wird sonst gar nicht getestet.
 
 ---
 
@@ -164,14 +160,14 @@ Die Testfälle 12 und 13 prüfen die Verriegelung selbst. Ohne sie prüft der Te
 1. Projekt im OpenPLC Editor öffnen
 2. Kompilieren und Simulation starten
 3. Variablen `Schritt`, `NS_*` und `OW_*` in den Debugger holen
-4. Ein vollständiger Umlauf dauert 26 Sekunden
+4. Ein vollständiger Umlauf dauert ca. 26 Sekunden
 
 ---
 
 ## Geplante Erweiterungen
 
 - Nachtblinken (Gelb blinkend)
-- Fußgängerphase in die Kreuzung integrieren
+- Fussgängerphase in die Kreuzung integrieren
 
 ---
 
